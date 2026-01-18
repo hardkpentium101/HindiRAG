@@ -1,0 +1,34 @@
+# Core dependencies
+openai>=1.3.5
+qdrant-client>=1.7.0
+streamlit>=1.28.1
+langchain>=0.0.331
+langchain-openai>=0.0.5
+langchain-community>=0.0.10
+langchain-huggingface>=0.0.1
+sentence-transformers>=2.2.2
+torch>=2.0.1
+transformers>=4.35.0
+tokenizers>=0.14.0
+datasets>=2.14.6
+numpy>=1.24.3
+pandas>=2.1.1
+pydantic>=2.4.2
+python-dotenv>=1.0.0
+huggingface-hub>=0.17.3
+accelerate>=0.23.0
+
+# Multiple LLM support
+huggingface-hub>=0.17.3
+ctransformers>=0.2.27
+auto-gptq>=0.7.1
+optimum>=1.17.1
+
+# Additional LLM providers
+langchain-anthropic>=0.1.0
+langchain-google-genai>=0.0.6
+langchain-ollama>=0.0.1
+
+# Utilities
+tiktoken>=0.5.1
+faiss-cpu>=1.7.4
