@@ -1,0 +1,11 @@
+{
+  "data/enhanced_hindi_literature_detailed.json": "e7c41cc4efdafdadb7aa4ca3edd1ec7ce5f5bb3a882d2a9b56022ea1e534bbe0",
+  "data/expanded_hindi_literature.json": "f4efb74ddca24fbf535e4f23afd63ab62d260451b95c81eb26023f336bae38e3",
+  "data/generated_hindi_literature_500.json": "3c958e299fcb968642f4958d01fa7dd3f14920909336d7815a965bcf542782f9",
+  "data/generated_hindi_poems_1000.json": "c614069ff4d79a692d0edfcd04428317185e9800396419370b8d502107a9d841",
+  "data/merged_hindi_literature.json": "0fca285296eb37870a599ff3ac987e22386ec445fe9e78e071056e6b291fb3c8",
+  "data/more_hindi_literature.json": "04a51e926f06330d85b3d50c4270cbc3a108ddefec006b330de8c98b1999ef93",
+  "data/sample_hindi_poem.json": "88611903e94b5097e38f6ab2c9c492cf6ea21d741ca99c9c5ce6d9b3d06a3deb",
+  "data/sample_hindi_story.json": "55e9c2f0b9149d4054dda7d95b6ff1f5fc1fee86f008eb56dbb07649d5b32d8b",
+  "data/hindi_literature.json": "3908e82df4cb0e7f1559ef0b20ae6b8d415dbe122959d00ceb7ba8e0b8a7c592"
+}

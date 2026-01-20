@@ -53,7 +53,14 @@ with st.sidebar:
 if not st.session_state.system_initialized or not st.session_state.model_configured:
     # Initialize the RAG system automatically
     try:
-        st.session_state.rag_system = HindiRAGSystem(llm_provider=st.session_state.current_model)
+        # Use HuggingFace as default if no model is selected or if there are issues with the selected model
+        provider_to_use = st.session_state.current_model
+        if provider_to_use == "openai" and not os.getenv("OPENAI_API_KEY"):
+            # If OpenAI is selected but no API key is available, default to HuggingFace
+            provider_to_use = "huggingface"
+            st.warning("OpenAI API key not found. Using HuggingFace as default.")
+
+        st.session_state.rag_system = HindiRAGSystem(llm_provider=provider_to_use)
         st.session_state.system_initialized = True
         st.session_state.model_configured = True
     except Exception as e:
@@ -61,6 +68,14 @@ if not st.session_state.system_initialized or not st.session_state.model_configu
         st.session_state.system_initialized = False
         st.session_state.model_configured = False
         st.error(f"Error initializing system with {selected_model_display}: {str(e)}")
+        # Try to initialize with HuggingFace as fallback
+        try:
+            st.session_state.rag_system = HindiRAGSystem(llm_provider="huggingface")
+            st.session_state.system_initialized = True
+            st.session_state.model_configured = True
+            st.success("System initialized with HuggingFace as fallback.")
+        except Exception as fallback_error:
+            st.error(f"Fallback initialization also failed: {str(fallback_error)}")
 
 if 'documents_loaded' not in st.session_state:
     # Automatically load documents if system is initialized

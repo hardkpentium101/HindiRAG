@@ -1,5 +1,6 @@
 import os
 import json
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Union
 import uuid
@@ -12,19 +13,98 @@ class DocumentIngestor:
         """
         self.qdrant_client = qdrant_client
         self.collection_name = collection_name
+        self.hash_file_path = f"./{collection_name}_document_hashes.json"
+
+    def _calculate_file_hash(self, file_path: str) -> str:
+        """
+        Calculate SHA256 hash of a file
+        """
+        hash_sha256 = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            # Read the file in chunks to handle large files efficiently
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_sha256.update(chunk)
+        return hash_sha256.hexdigest()
+
+    def _load_document_hashes(self) -> Dict[str, str]:
+        """
+        Load previously saved document hashes from file
+        """
+        if os.path.exists(self.hash_file_path):
+            try:
+                with open(self.hash_file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                return {}
+        return {}
+
+    def _save_document_hashes(self, hashes: Dict[str, str]) -> None:
+        """
+        Save document hashes to file
+        """
+        with open(self.hash_file_path, 'w', encoding='utf-8') as f:
+            json.dump(hashes, f, ensure_ascii=False, indent=2)
+
+    def _get_changed_documents(self, data_dir: str) -> List[str]:
+        """
+        Compare current files with previously hashed files to determine which ones have changed
+        Returns list of file paths that have changed or are new
+        """
+        current_hashes = {}
+        changed_files = []
+
+        data_path = Path(data_dir)
+
+        # Get all JSON and TXT files in the directory
+        all_files = list(data_path.glob("*.json")) + list(data_path.glob("*.txt"))
+
+        # Load previous hashes
+        previous_hashes = self._load_document_hashes()
+
+        # Calculate hashes for current files
+        for file_path in all_files:
+            file_str = str(file_path)
+            current_hash = self._calculate_file_hash(file_str)
+            current_hashes[file_str] = current_hash
+
+            # Check if file is new or has changed
+            if file_str not in previous_hashes or previous_hashes[file_str] != current_hash:
+                changed_files.append(file_str)
+
+        # Also check for deleted files (present in previous but not in current)
+        deleted_files = [file for file in previous_hashes if file not in current_hashes]
+
+        # Update the hash file with current hashes
+        self._save_document_hashes(current_hashes)
+
+        print(f"Detected {len(changed_files)} changed/new files, {len(deleted_files)} deleted files")
+        return changed_files
     
-    def load_hindi_texts(self, data_dir: str) -> List[Dict]:
+    def load_hindi_texts(self, data_dir: str, only_changed: bool = True) -> List[Dict]:
         """
         Load Hindi poems and stories from data directory
         Expected format: JSON files with 'title', 'author', 'text', 'genre' fields
+        If only_changed is True, only load documents from files that have changed since last ingestion
         """
         documents = []
 
-        # Look for JSON files in the data directory
-        data_path = Path(data_dir)
-        json_files = list(data_path.glob("*.json"))
+        # Determine which files to process
+        if only_changed:
+            files_to_process = self._get_changed_documents(data_dir)
+            if not files_to_process:
+                print("No document changes detected. Skipping ingestion.")
+                return []
+        else:
+            # Process all files
+            data_path = Path(data_dir)
+            all_files = list(data_path.glob("*.json")) + list(data_path.glob("*.txt"))
+            files_to_process = [str(f) for f in all_files]
 
-        print(f"Found {len(json_files)} JSON files in {data_dir}")
+        print(f"Processing {len(files_to_process)} files")
+
+        # Process JSON files
+        json_files = [f for f in files_to_process if f.endswith('.json')]
+        print(f"Found {len(json_files)} JSON files to process")
 
         for json_file in json_files:
             print(f"Processing file: {json_file}")
@@ -47,14 +127,14 @@ class DocumentIngestor:
                         }
                         documents.append(doc)
 
-                    print(f"  - Loaded {len(data)} documents from {json_file.name}")
+                    print(f"  - Loaded {len(data)} documents from {Path(json_file).name}")
             except json.JSONDecodeError as e:
                 print(f"  - Error reading {json_file}: {e}")
             except Exception as e:
                 print(f"  - Unexpected error reading {json_file}: {e}")
 
-        # Also look for text files
-        txt_files = list(data_path.glob("*.txt"))
+        # Process text files
+        txt_files = [f for f in files_to_process if f.endswith('.txt')]
         for txt_file in txt_files:
             print(f"Processing text file: {txt_file}")
             try:
@@ -69,7 +149,7 @@ class DocumentIngestor:
                         if t.strip():
                             doc = {
                                 'id': str(uuid.uuid4()),
-                                'title': f"{txt_file.stem}_{i}",
+                                'title': f"{Path(txt_file).stem}_{i}",
                                 'author': 'Unknown',
                                 'text': t.strip(),
                                 'genre': 'story',  # Default to story for txt files
@@ -77,7 +157,7 @@ class DocumentIngestor:
                             }
                             documents.append(doc)
 
-                    print(f"  - Loaded {len([t for t in texts if t.strip()])} text chunks from {txt_file.name}")
+                    print(f"  - Loaded {len([t for t in texts if t.strip()])} text chunks from {Path(txt_file).name}")
             except Exception as e:
                 print(f"  - Error reading {txt_file}: {e}")
 
@@ -196,17 +276,23 @@ class DocumentIngestor:
                     else:
                         print(f"Max attempts reached for final batch. {len(points)} points not ingested.")
     
-    def load_and_ingest(self, data_dir: str, embedding_function) -> int:
+    def load_and_ingest(self, data_dir: str, embedding_function, only_changed: bool = True) -> int:
         """
         Load documents from directory and ingest them into Qdrant
+        If only_changed is True, only ingest documents from files that have changed since last ingestion
         """
         print(f"Loading documents from {data_dir}")
-        documents = self.load_hindi_texts(data_dir)
+        documents = self.load_hindi_texts(data_dir, only_changed=only_changed)
+
+        if not documents:
+            print("No new or changed documents to ingest.")
+            return 0
+
         print(f"Loaded {len(documents)} documents")
-        
+
         print("Ingesting documents into Qdrant...")
         self.ingest_documents(documents, embedding_function)
-        
+
         return len(documents)
 
 # Example usage

@@ -1,0 +1,16 @@
+{
+  "datasets": [
+    {
+      "name": "hindi_pretrained_sp",
+      "source": "Hindi-data-hub/odaigen_hindi_pre_trained_sp",
+      "path": "hindi_documents/all_hindi_documents.json",
+      "language": "hi",
+      "description": "Hindi dataset with literature, stories, and poems"
+    }
+  ],
+  "integration_notes": [
+    "Use Hindi-compatible embedding models",
+    "Consider transliteration for mixed queries",
+    "Test retrieval with native Hindi queries"
+  ]
+}

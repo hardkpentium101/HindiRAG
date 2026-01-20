@@ -18,31 +18,51 @@ class HindiEmbeddingGenerator:
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         # Load model with proper device handling to avoid meta tensor issues
+        # Explicitly set device to CPU to avoid meta device issues
         self.model = AutoModel.from_pretrained(
             model_name,
-            torch_dtype=torch.float32  # Use consistent dtype
+            torch_dtype=torch.float32,  # Use consistent dtype
+            device_map="cpu",  # Explicitly set to CPU to avoid meta device
+            low_cpu_mem_usage=False  # Avoid issues with meta tensors
         )
+
+        # Check if the model is on a meta device and handle appropriately
+        try:
+            # Ensure model is on CPU - use to_empty if it's a meta tensor
+            if next(self.model.parameters()).device.type == 'meta':
+                # If the model is on meta device, we need to move it properly
+                self.model = self.model.to_empty(device='cpu')
+            else:
+                # Otherwise, use regular to() method
+                self.model = self.model.to('cpu')
+        except RuntimeError as e:
+            if "Cannot copy out of meta tensor" in str(e):
+                # Handle the specific meta tensor error by using to_empty
+                self.model = self.model.to_empty(device='cpu')
+            else:
+                raise e
 
         # Initialize OpenAI client for generation
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
+
     def get_embedding(self, text: str) -> List[float]:
         """
         Generate embedding for Hindi text using multilingual model
         """
         # Tokenize the input text
         inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        
+
         # Get model outputs
         with torch.no_grad():
             outputs = self.model(**inputs)
-        
+
         # Use mean pooling to get the sentence embedding
-        embeddings = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
-        
+        # Move tensor to CPU before converting to numpy to avoid meta device issues
+        embeddings = outputs.last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
+
         # Convert to list and return
         return embeddings.tolist()
-    
+
     def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for a batch of texts
@@ -52,13 +72,13 @@ class HindiEmbeddingGenerator:
             embedding = self.get_embedding(text)
             embeddings.append(embedding)
         return embeddings
-    
+
     def generate_response(self, prompt: str, context: str = "") -> str:
         """
         Generate response using OpenAI with provided context
         """
         full_prompt = f"Context: {context}\n\nQuestion: {prompt}\n\nPlease provide a helpful response in Hindi if possible, or in English."
-        
+
         response = self.openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -68,7 +88,7 @@ class HindiEmbeddingGenerator:
             max_tokens=500,
             temperature=0.7
         )
-        
+
         return response.choices[0].message.content
 
 # Alternative implementation using OpenAI embeddings directly
@@ -79,7 +99,7 @@ class OpenAIEmbeddingGenerator:
         """
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = "text-embedding-ada-002"
-    
+
     def get_embedding(self, text: str) -> List[float]:
         """
         Get embedding from OpenAI
@@ -89,7 +109,7 @@ class OpenAIEmbeddingGenerator:
             model=self.model
         )
         return response.data[0].embedding
-    
+
     def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """
         Get embeddings for a batch of texts
@@ -97,7 +117,7 @@ class OpenAIEmbeddingGenerator:
         # OpenAI API limits batch size, so we'll process in chunks
         embeddings = []
         chunk_size = 20  # Conservative batch size
-        
+
         for i in range(0, len(texts), chunk_size):
             chunk = texts[i:i + chunk_size]
             response = self.client.embeddings.create(
@@ -106,7 +126,7 @@ class OpenAIEmbeddingGenerator:
             )
             chunk_embeddings = [item.embedding for item in response.data]
             embeddings.extend(chunk_embeddings)
-        
+
         return embeddings
 
 # Choose which embedding generator to use
@@ -122,7 +142,7 @@ def get_embedding_function():
 if __name__ == "__main__":
     # Example usage
     embed_gen = HindiEmbeddingGenerator()
-    
+
     # Test with Hindi text
     hindi_text = "हिंदी साहित्य भारत के समृद्ध साहित्यिक परंपरा का प्रतिनिधित्व करता है।"
     embedding = embed_gen.get_embedding(hindi_text)

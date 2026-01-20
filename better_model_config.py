@@ -11,6 +11,11 @@ BETTER_MODEL_CONFIGS = {
             "model": "ai4bharat/indic-bert",
             "description": "BERT model trained specifically for Indian languages including Hindi"
         },
+        # GLM models for multilingual support
+        "glm_multilingual": {
+            "model": "THUDM/chatglm3-6b",
+            "description": "ChatGLM model with good multilingual capabilities, including Hindi"
+        },
         # Multilingual models that work well for Hindi
         "multilingual_mistral": {
             "model": "mistralai/Mistral-7B-Instruct-v0.2",
